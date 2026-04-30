@@ -26,7 +26,7 @@ function Stat({ label, value, color, sub }) {
         letterSpacing:"0.07em" }}>{label}</div>
       {sub && <div style={{ color:TX5, fontSize:"0.68rem" }}>{sub}</div>}
     </div>
-  );
+    );
 }
 
 // ── Vue : Organisations ────────────────────────────────────────────────────────
@@ -264,8 +264,108 @@ function LogsView({ logs, orgs }) {
   );
 }
 
+
+// ── Écran de configuration ─────────────────────────────────────────────────────
+function SetupScreen({ onSave }) {
+  const [url, setUrl]   = useState("https://yzmcqjtepybifjbyxfer.supabase.co");
+  const [key, setKey]   = useState("");
+  const [error, setError] = useState("");
+  const [testing, setTesting] = useState(false);
+  const { C2, BRD2, TX, TX3, TX4, TX5, BLUE, RED } = TK;
+  const css = makeCss();
+
+  const test = async () => {
+    if (!url || !key) { setError("Les deux champs sont requis"); return; }
+    setTesting(true); setError("");
+    try {
+      db.saveCreds(url, key);
+      const r = await db.select("organisations", "select=id&limit=1");
+      if (Array.isArray(r)) {
+        onSave();
+      } else {
+        throw new Error("Réponse inattendue");
+      }
+    } catch(e) {
+      db.clearCreds();
+      setError(e.message || "Connexion échouée — vérifiez l'URL et la clé");
+    }
+    setTesting(false);
+  };
+
+  const inp = { ...css.inp, fontSize: "0.83rem", fontFamily: "monospace" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: TK.C, display: "flex",
+      alignItems: "center", justifyContent: "center", fontFamily: "Outfit,system-ui,sans-serif" }}>
+      <div style={{ width: "90vw", maxWidth: 480, background: C2,
+        border: `1px solid ${BRD2}`, borderRadius: 12, padding: "32px 28px",
+        boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 48, height: 48, background: `linear-gradient(135deg,${BLUE},${BLUE}88)`,
+            borderRadius: 10, marginBottom: 12 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M3 5v4c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+              <path d="M3 9v4c0 1.66 4.03 3 9 3s9-1.34 9-3V9"/>
+              <path d="M3 13v4c0 1.66 4.03 3 9 3s9-1.34 9-3v-4"/>
+            </svg>
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700,
+            color: TK.TX, fontSize: "1rem", letterSpacing: "0.1em" }}>DEVIS·BASE ADMIN</div>
+          <div style={{ color: TX4, fontSize: "0.78rem", marginTop: 6 }}>
+            Configurez l'accès à votre base Supabase
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ color: TX3, fontSize: "0.72rem", fontWeight: 600,
+              textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              URL Supabase
+            </label>
+            <input style={inp} value={url} onChange={e => setUrl(e.target.value)}
+              placeholder="https://xxxxx.supabase.co"/>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ color: TX3, fontSize: "0.72rem", fontWeight: 600,
+              textTransform: "uppercase", letterSpacing: "0.07em" }}>
+              Service Role Key
+            </label>
+            <input style={{ ...inp, fontSize: "0.72rem" }} value={key}
+              onChange={e => setKey(e.target.value)}
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              type="password"/>
+            <div style={{ color: TX5, fontSize: "0.69rem", lineHeight: 1.5 }}>
+              Supabase → Settings → API → <strong style={{color:TX4}}>service_role</strong> (secret).<br/>
+              Stockée uniquement dans votre navigateur, jamais envoyée ailleurs.
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ padding: "9px 12px", background: "#1a0608",
+              border: "1px solid #3f1019", borderRadius: 6,
+              color: "#fca5a5", fontSize: "0.78rem" }}>
+              {error}
+            </div>
+          )}
+
+          <button style={{ ...css.btnP, justifyContent: "center", padding: "10px",
+            opacity: testing ? 0.6 : 1 }}
+            onClick={test} disabled={testing}>
+            {testing ? "Test de connexion…" : "Se connecter"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard principal ────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const [configured, setConfigured] = useState(() => db.hasCreds());
   const [view, setView]       = useState("orgs");
   const [orgs, setOrgs]       = useState([]);
   const [members, setMembers] = useState([]);
@@ -333,6 +433,9 @@ export default function Dashboard() {
   ];
 
   return (
+    if (!configured) return <SetupScreen onSave={() => { setConfigured(true); load(); }} />;
+
+    return (
     <div style={{ minHeight:"100vh", background:TK.C, fontFamily:"Outfit,system-ui,sans-serif",
       color:TK.TX }}>
 
@@ -383,6 +486,10 @@ export default function Dashboard() {
           <button onClick={load}
             style={{ ...css.btnS, padding:"4px 10px", fontSize:"0.73rem" }}>
             ↻ Actualiser
+          </button>
+          <button onClick={() => { db.clearCreds(); setConfigured(false); setOrgs([]); }}
+            style={{ ...css.btnS, padding:"4px 10px", fontSize:"0.73rem", color:TK.TX4 }}>
+            ⎋ Déconnecter
           </button>
           <button onClick={toggleTheme}
             style={{ ...css.btnS, padding:"4px 10px", fontSize:"0.73rem" }}>
